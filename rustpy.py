@@ -108,8 +108,33 @@ class RustScanner:
                 resolver.timeout = 5
                 resolver.lifetime = 5
 
-                answers = await resolver.resolve(target, 'A')
-                ips = [str(rdata) for rdata in answers]
+                ips = []
+
+                # Try to resolve IPv4 addresses
+                try:
+                    a_answers = await resolver.resolve(target, 'A')
+                    ipv4_ips = [str(rdata) for rdata in a_answers]
+                    logger.info(f"Resolved IPv4 addresses for {target}: {ipv4_ips}")
+                    ips.extend(ipv4_ips)
+                except Exception as e:
+                    logger.debug(f"No IPv4 addresses found for {target}: {str(e)}")
+
+                # Try to resolve IPv6 addresses
+                try:
+                    aaaa_answers = await resolver.resolve(target, 'AAAA')
+                    ipv6_ips = [str(rdata) for rdata in aaaa_answers]
+                    logger.info(f"Resolved IPv6 addresses for {target}: {ipv6_ips}")
+                    ips.extend(ipv6_ips)
+                except Exception as e:
+                    logger.debug(f"No IPv6 addresses found for {target}: {str(e)}")
+
+                if not ips:
+                    logger.error(f"No IP addresses found for {target}")
+                    return ScanTarget(
+                        target=target,
+                        resolved_ips=[],
+                        is_behind_cdn=False
+                    )
 
                 is_behind_cdn = False
                 for ip in ips:
@@ -178,6 +203,14 @@ class RustScanner:
         except (IndexError, ValueError) as e:
             logger.error(f"Error parsing service line: {line}. {e}")
 
+
+    async def _is_ipv6(self, ip: str) -> bool:
+        try:
+            return isinstance(ipaddress.ip_address(ip), ipaddress.IPv6Address)
+        except ValueError:
+            return False
+
+
     async def setup_base_command(self, target: ScanTarget) -> List[str]:
         base_cmd = [
             "rustscan",
@@ -189,8 +222,24 @@ class RustScanner:
             "--accessible"
         ]
 
+        # Check if any of the resolved IPs is IPv6
+        has_ipv6 = False
+        print(target.resolved_ips)
+        for ip in target.resolved_ips:
+            if await self._is_ipv6(ip):
+                has_ipv6 = True
+                break
+
+
         if self.service_detection:
-            base_cmd.extend(["--", "-Sv", "-T4", "-n"])  # Nmap flags -> -Pn: No ping, -T4: Aggressive timing template.
+            nmap_flags = ["-Pn", "-T4", "-n"]  # Nmap flags -> -Pn: No ping, -T4: Aggressive timing template. -n: No DNS resolution
+            if has_ipv6:
+                nmap_flags.insert(0, "-6")
+            base_cmd.extend(["--"] + nmap_flags)
+
+        else:
+            if has_ipv6:
+                base_cmd.extend(["--", "-6"])
 
         return base_cmd
 
@@ -316,7 +365,7 @@ def main():
     parser.add_argument("targets", nargs="+", help="Domains, IPs, or CIDR ranges to scan")
     parser.add_argument("-b", "--batch-size", type=int, default=30000)
     parser.add_argument("-u", "--ulimit", type=int, default=45000)
-    parser.add_argument("-t", "--timeout", type=int, default=2500)
+    parser.add_argument("-t", "--timeout", type=int, default=3500)
     parser.add_argument("-c", "--concurrent", type=int, default=5)
     parser.add_argument("--tries", type=int, default=1)
     parser.add_argument("-nsd", "--no-service-detection", action="store_true")

@@ -21,12 +21,12 @@ python3 rustpy.py example.com
 
 - For a CIDR range (use a small range for testing):
 ```
-python3 rustpy.py 192.168.1.0/29 -b 5000 -t 2000 -c 3
+python3 rustpy.py 192.168.1.0/29 -b 20000 -u 45000 -t 4000 -c 3
 ```
 
 - For mixed targets:
 ```
-python3 rustpy.py 45.77.227.31 example.com 192.168.1.0/29 -b 5000 -t 2000 -c 3
+python3 rustpy.py 192.168.10.146 example.com
 ```
 
 As a library:
@@ -34,14 +34,12 @@ As a library:
 import rustpy
 
 rust_scanner = rustpy.RustScanner(
-    batch_size=args.batch_size,
-    ulimit=args.ulimit,
-    timeout=args.timeout,
-    concurrent_limit=args.concurrent,
-    tries=args.tries,
-    rate=args.rate,
-    greppable=args.greppable,
-    service_detection=not args.no_service_detection
+    batch_size=batch_size, # By default it is 30000
+    ulimit=ulimit, # By default it is 45000
+    timeout=timeout, # By default it is 3500
+    concurrent_limit=concurrent, # By default it is 5
+    tries=tries, # By default it is 1
+    service_detection=False, # setting it to True will enable deeper service detection, but consuming more time.
 )
 
 await rustpy.run(rust_scanner, targets, output))
