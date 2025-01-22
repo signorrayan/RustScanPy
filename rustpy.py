@@ -224,7 +224,6 @@ class RustScanner:
 
         # Check if any of the resolved IPs is IPv6
         has_ipv6 = False
-        print(target.resolved_ips)
         for ip in target.resolved_ips:
             if await self._is_ipv6(ip):
                 has_ipv6 = True
