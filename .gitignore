@@ -1,0 +1,5 @@
+scan_results/
+__pycache__/
+*.pyc
+.idea/
+venv/
